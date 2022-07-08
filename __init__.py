@@ -8,7 +8,7 @@ import fnmatch
 from functools import cached_property
 import logging
 import platform
-from typing import Final
+from typing import Final, TypedDict
 
 from bleak import BleakError
 from bleak.backends.device import MANUFACTURERS, BLEDevice
@@ -26,7 +26,6 @@ from homeassistant.core import (
 from homeassistant.data_entry_flow import BaseServiceInfo
 from homeassistant.helpers import discovery_flow
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.loader import BluetoothMatcher, async_get_bluetooth
 
 from . import models
 from .const import DOMAIN
@@ -36,6 +35,25 @@ from .usage import install_multiple_bleak_catcher
 _LOGGER = logging.getLogger(__name__)
 
 MAX_REMEMBER_ADDRESSES: Final = 2048
+
+
+class BluetoothMatcherRequired(TypedDict, total=True):
+    """Matcher for the bluetooth integration for required fields."""
+
+    domain: str
+
+
+class BluetoothMatcherOptional(TypedDict, total=False):
+    """Matcher for the bluetooth integration for optional fields."""
+
+    local_name: str
+    service_uuid: str
+    manufacturer_id: int
+    manufacturer_data_first_byte: int
+
+
+class BluetoothMatcher(BluetoothMatcherRequired, BluetoothMatcherOptional):
+    """Matcher for the bluetooth integration."""
 
 
 class BluetoothScanningMode(Enum):
@@ -118,7 +136,7 @@ def async_register_callback(
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the bluetooth integration."""
-    integration_matchers = await async_get_bluetooth(hass)
+    integration_matchers: list[BluetoothMatcher] = []
     bluetooth_discovery = BluetoothManager(
         hass, integration_matchers, BluetoothScanningMode.PASSIVE
     )
