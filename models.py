@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import Any, Final, cast
 
@@ -18,7 +19,7 @@ FILTER_UUIDS: Final = "UUIDs"
 
 HA_BLEAK_SCANNER: HaBleakScanner | None = None
 
-MAX_HISTORY_SIZE: Final = 256
+MAX_HISTORY_SIZE: Final = 512
 
 
 def _dispatch_callback(
@@ -46,9 +47,13 @@ def _dispatch_callback(
 class HaBleakScanner(BleakScanner):  # type: ignore[misc]
     """BleakScanner that cannot be stopped."""
 
-    # HaBleakScanner is a singleton
-    _callbacks: list[tuple[AdvertisementDataCallback, dict[str, set[str]]]] = []
-    _history: LRU = LRU(MAX_HISTORY_SIZE)
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the BleakScanner."""
+        self._callbacks: list[
+            tuple[AdvertisementDataCallback, dict[str, set[str]]]
+        ] = []
+        self._history: LRU = LRU(MAX_HISTORY_SIZE)
+        super().__init__(*args, **kwargs)
 
     @hass_callback
     def async_register_callback(
@@ -132,4 +137,6 @@ class HaBleakScannerWrapper(BleakScanner):  # type: ignore[misc]
     def __del__(self) -> None:
         """Delete the BleakScanner."""
         if self._detection_cancel:
-            asyncio.get_running_loop().call_soon_threadsafe(self._detection_cancel)
+            # Nothing to do if event loop is already closed
+            with contextlib.suppress(RuntimeError):
+                asyncio.get_running_loop().call_soon_threadsafe(self._detection_cancel)
